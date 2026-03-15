@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <title>Munkaidő naplózó</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg: #0f172a;
@@ -25,9 +25,16 @@
     }
 
     * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; font-family: Inter, Arial, sans-serif; background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%); color: var(--text); }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+      color: var(--text);
+    }
     body { min-height: 100vh; }
     .wrap { max-width: 1240px; margin: 0 auto; padding: 16px; }
+
     .hero {
       background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
       color: white;
@@ -45,6 +52,7 @@
     }
     .hero h1 { margin: 0 0 8px; font-size: 30px; }
     .hero p { margin: 0; color: #cbd5e1; line-height: 1.45; }
+
     .pillbar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
     .pill {
       background: rgba(255,255,255,0.08);
@@ -53,6 +61,7 @@
       border-radius: 999px;
       font-size: 14px;
     }
+
     .timebox {
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.08);
@@ -65,6 +74,7 @@
 
     .grid { display: grid; gap: 18px; }
     .grid-main { grid-template-columns: 1.3fr 0.9fr; }
+
     .card {
       background: var(--card);
       border-radius: var(--radius);
@@ -72,8 +82,28 @@
       padding: 18px;
       border: 1px solid rgba(226, 232, 240, 0.8);
     }
+
     .section-title { font-size: 20px; font-weight: 800; margin: 0 0 14px; }
     .subtle { color: var(--muted); font-size: 14px; }
+
+    .auth-grid {
+      display: grid;
+      gap: 10px;
+      max-width: 460px;
+    }
+    .input {
+      width: 100%;
+      padding: 14px;
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 16px;
+      outline: none;
+      background: white;
+    }
+    .input:focus {
+      border-color: #60a5fa;
+      box-shadow: 0 0 0 3px rgba(96, 165, 250, .15);
+    }
 
     .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .btn {
@@ -92,6 +122,26 @@
     .btn-in { background: linear-gradient(135deg, #16a34a, #15803d); }
     .btn-out { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
 
+    .small-btn {
+      background: #fff;
+      color: var(--text);
+      border: 1px solid #d1d5db;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .small-btn.primary {
+      background: #eff6ff;
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+    }
+    .small-btn.danger {
+      color: var(--red);
+      border-color: #fecaca;
+      background: #fff5f5;
+    }
+
     .info-banner {
       background: #f8fafc;
       border: 1px solid #e2e8f0;
@@ -99,6 +149,7 @@
       padding: 14px;
       margin-top: 14px;
     }
+
     .active {
       background: #ecfeff;
       border: 1px solid #a5f3fc;
@@ -106,9 +157,25 @@
       padding: 16px;
       margin-top: 14px;
     }
-    .kv { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px 16px; margin-top: 10px; }
-    .kv div { background: rgba(255,255,255,0.7); border-radius: 12px; padding: 10px 12px; }
-    .kv .k { color: var(--muted); font-size: 12px; display: block; margin-bottom: 3px; }
+
+    .kv {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px 16px;
+      margin-top: 10px;
+    }
+    .kv div {
+      background: rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+    .kv .k {
+      color: var(--muted);
+      font-size: 12px;
+      display: block;
+      margin-bottom: 3px;
+    }
+
     .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 14px; }
     .stat {
       background: #fff;
@@ -131,6 +198,7 @@
 
     .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; }
     .summary-grid.secondary { grid-template-columns: repeat(7, minmax(0,1fr)); margin-top: 12px; }
+
     .summary-foot {
       margin-top: 12px;
       background: #f8fafc;
@@ -140,22 +208,29 @@
       font-weight: 700;
     }
 
-    .toolbar { display: flex; gap: 10px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
-    .small-btn {
-      background: #fff;
-      color: var(--text);
-      border: 1px solid #d1d5db;
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-weight: 700;
-      cursor: pointer;
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
     }
-    .small-btn.danger { color: var(--red); border-color: #fecaca; background: #fff5f5; }
 
     .table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 16px; }
     table { width: 100%; border-collapse: collapse; min-width: 1040px; background: white; }
-    th, td { padding: 12px 12px; border-bottom: 1px solid #e5e7eb; text-align: left; font-size: 14px; }
-    th { background: #f8fafc; color: #334155; font-size: 13px; position: sticky; top: 0; }
+    th, td {
+      padding: 12px 12px;
+      border-bottom: 1px solid #e5e7eb;
+      text-align: left;
+      font-size: 14px;
+    }
+    th {
+      background: #f8fafc;
+      color: #334155;
+      font-size: 13px;
+      position: sticky;
+      top: 0;
+    }
     tr:hover td { background: #fafcff; }
 
     .log-item {
@@ -166,6 +241,7 @@
       overflow-x: auto;
       background: white;
     }
+
     .badge {
       display: inline-block;
       padding: 8px 12px;
@@ -176,7 +252,9 @@
       color: #1d4ed8;
       margin-right: 8px;
     }
+
     .muted { color: var(--muted); }
+
     .empty {
       border: 2px dashed #cbd5e1;
       border-radius: 18px;
@@ -185,6 +263,9 @@
       color: var(--muted);
       background: #f8fafc;
     }
+
+    .ok { color: #15803d; }
+    .err { color: #b91c1c; }
 
     @media (max-width: 1100px) {
       .grid-main { grid-template-columns: 1fr; }
@@ -205,12 +286,29 @@
   </style>
 </head>
 <body>
-</div>
+  <div class="wrap">
+    <section class="card" style="margin-bottom: 18px;">
+      <div class="toolbar">
+        <h2 class="section-title" style="margin:0;">Bejelentkezés</h2>
+        <div id="authStatus" class="subtle">Nincs bejelentkezve</div>
+      </div>
+
+      <div class="auth-grid" style="margin-top: 14px;">
+        <input id="email" class="input" type="email" placeholder="Email cím" />
+        <input id="password" class="input" type="password" placeholder="Jelszó" />
+        <div class="action-grid">
+          <button id="registerBtn" class="small-btn">Regisztráció</button>
+          <button id="loginBtn" class="small-btn primary">Belépés</button>
+        </div>
+        <button id="logoutBtn" class="small-btn danger">Kijelentkezés</button>
+      </div>
+    </section>
+
     <section class="hero">
       <div class="hero-top">
         <div>
           <h1>Munkaidő naplózó</h1>
-          <p>GitHub Pages-kompatibilis, mobilbarát verzió. 2 gombos működés, automatikus műszakfelismerés, 18 perc kajaszünet levonás, túlóra idő- és bérszámolás, napi / heti / havi összesítés.</p>
+          <p>Többfelhasználós verzió bejelentkezéssel. A műszakok a saját fiókodhoz mentődnek, így más nem látja a te adataidat. Automatikus műszakfelismerés, 18 perc kajaszünet levonás, túlóra idő- és bérszámolás, napi / heti / havi összesítés.</p>
           <div class="pillbar">
             <div class="pill">Délelőtt: 05:45–13:45</div>
             <div class="pill">Délután: 13:45–21:45</div>
@@ -261,6 +359,7 @@
         <h2 class="section-title" style="margin:0;">Teljes összesítés</h2>
         <button class="small-btn danger" id="clearAllBtn">Napló törlése</button>
       </div>
+
       <div class="summary-grid" style="margin-top: 14px;">
         <div class="stat"><div class="l">50% túlóra bér</div><div class="v" id="sumOt50Pay">0.00 €</div></div>
         <div class="stat"><div class="l">100% túlóra bér</div><div class="v" id="sumOt100Pay">0.00 €</div></div>
@@ -268,6 +367,7 @@
         <div class="stat"><div class="l">Fix havi bruttó</div><div class="v">3533.00 €</div></div>
         <div class="stat"><div class="l">Becsült bruttó + túlóra</div><div class="v" id="sumGrossPlusOt">3533.00 €</div></div>
       </div>
+
       <div class="summary-grid secondary">
         <div class="stat"><div class="l">Nyers alapidő</div><div class="v" id="sumRaw">0 ó 00 p</div></div>
         <div class="stat"><div class="l">Kajaszünet levonás</div><div class="v" id="sumBreak">0 ó 00 p</div></div>
@@ -277,7 +377,8 @@
         <div class="stat"><div class="l">100% túlóra</div><div class="v" id="sumOt100">0 ó 00 p</div></div>
         <div class="stat"><div class="l">Kifizetett idő</div><div class="v" id="sumPaidEquivalent">0 ó 00 p</div></div>
       </div>
-      <div class="summary-foot">A teljes összesítésben a <strong>3533 € fix havi bér</strong> csak tájékoztató jelleggel látszik. A valódi hozzáadás a havi táblázatban értelmes.</div>
+
+      <div class="summary-foot">A teljes összesítésben a <strong>3533 € fix havi bér</strong> tájékoztató jelleggel látszik. A havi táblázatban adódik hozzá ténylegesen a havi túlórához.</div>
     </section>
 
     <section class="card" style="margin-top: 18px;">
@@ -302,14 +403,24 @@
   </div>
 
   <script>
-    const STORAGE_KEY = 'munkaido_naplozo_github_pages_v1';
+    // === CSAK EZT A 2 SORT CSERÉLD KI A SAJÁTODRA ===
+    const SUPABASE_URL = "https://gbshydabzhghgmjdlowf.supabase.co/";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic2h5ZGFiemhnaGdtamRsb3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Nzc5NzAsImV4cCI6MjA4OTE1Mzk3MH0.sosMlHDRCZs__QCQWwVjg7xP_ljuHNxWeg03JhmK-Kg";
+    // ===============================================
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     const BREAK_MINUTES = 18;
     const OVERTIME_200_RATE = 42.31;
     const OVERTIME_50_BONUS = 10.58;
     const BASE_HOURLY_RATE = OVERTIME_200_RATE / 2;
     const FIXED_MONTHLY_GROSS = 3533;
 
-    const state = loadState();
+    const state = {
+      user: null,
+      current: null,
+      history: []
+    };
 
     const els = {
       liveNow: document.getElementById('liveNow'),
@@ -333,39 +444,51 @@
       sumOt50Pay: document.getElementById('sumOt50Pay'),
       sumOt100Pay: document.getElementById('sumOt100Pay'),
       sumOtTotalPay: document.getElementById('sumOtTotalPay'),
-      sumGrossPlusOt: document.getElementById('sumGrossPlusOt')
+      sumGrossPlusOt: document.getElementById('sumGrossPlusOt'),
+      email: document.getElementById('email'),
+      password: document.getElementById('password'),
+      registerBtn: document.getElementById('registerBtn'),
+      loginBtn: document.getElementById('loginBtn'),
+      logoutBtn: document.getElementById('logoutBtn'),
+      authStatus: document.getElementById('authStatus')
     };
 
     els.checkInBtn.addEventListener('click', handleCheckIn);
     els.checkOutBtn.addEventListener('click', handleCheckOut);
-    els.clearAllBtn.addEventListener('click', clearAll);
+    els.clearAllBtn.addEventListener('click', clearAllLogs);
+    els.registerBtn.addEventListener('click', register);
+    els.loginBtn.addEventListener('click', login);
+    els.logoutBtn.addEventListener('click', logout);
 
-    render();
-    setInterval(() => {
+    init();
+
+    async function init() {
       updateLiveClock();
       updateDetectedShift();
-      renderActive();
-    }, 1000);
+      render();
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { current: null, history: [] };
-        const parsed = JSON.parse(raw);
-        return { current: parsed.current || null, history: Array.isArray(parsed.history) ? parsed.history : [] };
-      } catch {
-        return { current: null, history: [] };
-      }
-    }
+      setInterval(() => {
+        updateLiveClock();
+        updateDetectedShift();
+        renderActive();
+      }, 1000);
 
-    function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        state.user = session?.user || null;
+        await restoreUserData();
+        render();
+      });
+
+      const { data } = await supabase.auth.getSession();
+      state.user = data.session?.user || null;
+      await restoreUserData();
+      render();
     }
 
     function pad(n) { return String(n).padStart(2, '0'); }
-    function formatDate(d) { return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`; }
-    function formatTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-    function formatDateTime(d) { return `${formatDate(d)} ${formatTime(d)}`; }
+    function formatDate(d) { return ${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}; }
+    function formatTime(d) { return ${pad(d.getHours())}:${pad(d.getMinutes())}; }
+    function formatDateTime(d) { return ${formatDate(d)} ${formatTime(d)}; }
     function startOfDay(date) { const d = new Date(date); d.setHours(0,0,0,0); return d; }
     function addMinutes(date, minutes) { return new Date(date.getTime() + minutes * 60000); }
     function diffMinutes(a,b) { return Math.round((b.getTime() - a.getTime()) / 60000); }
@@ -373,19 +496,41 @@
       const safe = Math.max(0, Math.round(minutes));
       const h = Math.floor(safe / 60);
       const m = safe % 60;
-      return `${h} ó ${pad(m)} p`;
+      return ${h} ó ${pad(m)} p;
     }
     function toDecimalHours(minutes) { return (Math.max(0, minutes) / 60).toFixed(2); }
-    function formatEuro(value) { return `${(value || 0).toFixed(2)} €`; }
+    function formatEuro(value) { return ${(value || 0).toFixed(2)} €; }
     function quarterFloorFromShiftEnd(end, checkout) {
       const diff = Math.max(0, diffMinutes(end, checkout));
       return Math.floor(diff / 15) * 15;
+    }
+
+    function currentKeyForUser(userId) {
+      return munkaido_current_${userId};
+    }
+
+    function loadCurrentFromLocal(userId) {
+      try {
+        const raw = localStorage.getItem(currentKeyForUser(userId));
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    }
+
+    function saveCurrentToLocal(userId, current) {
+      localStorage.setItem(currentKeyForUser(userId), JSON.stringify(current));
+    }
+
+    function clearCurrentFromLocal(userId) {
+      localStorage.removeItem(currentKeyForUser(userId));
     }
 
     function buildShiftWindows(now) {
       const today = startOfDay(now);
       const yesterday = addMinutes(today, -1440);
       const tomorrow = addMinutes(today, 1440);
+
       return [
         { key: 'morning-yesterday', label: 'Délelőtt', shift: 'morning', start: addMinutes(yesterday, 5*60+45), end: addMinutes(yesterday, 13*60+45) },
         { key: 'afternoon-yesterday', label: 'Délután', shift: 'afternoon', start: addMinutes(yesterday, 13*60+45), end: addMinutes(yesterday, 21*60+45) },
@@ -400,9 +545,13 @@
       const windows = buildShiftWindows(now);
       let best = windows[0];
       let bestAbs = Math.abs(now.getTime() - windows[0].start.getTime());
+
       for (const w of windows) {
         const abs = Math.abs(now.getTime() - w.start.getTime());
-        if (abs < bestAbs) { best = w; bestAbs = abs; }
+        if (abs < bestAbs) {
+          best = w;
+          bestAbs = abs;
+        }
       }
       return best;
     }
@@ -413,6 +562,7 @@
 
       if (now >= earlyToleranceStart && now <= shiftStart) return new Date(shiftStart);
       if (now > shiftStart && now <= lateGraceEnd) return new Date(shiftStart);
+
       if (now > lateGraceEnd) {
         const minutesLate = diffMinutes(shiftStart, now);
         const roundedBlocks = Math.ceil(minutesLate / 15);
@@ -425,8 +575,10 @@
       const totalRounded = quarterFloorFromShiftEnd(shiftEnd, checkout);
       let fifty = 0;
       let hundred = 0;
+
       if (shiftType === 'morning') fifty = totalRounded;
       else hundred = totalRounded;
+
       return { totalRounded, fifty, hundred };
     }
 
@@ -477,15 +629,16 @@
       const firstDayNum = (firstThursday.getDay() + 6) % 7;
       firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
       const week = 1 + Math.round((d - firstThursday) / 604800000);
-      return `${d.getFullYear()}-W${pad(week)}`;
+      return ${d.getFullYear()}-W${pad(week)};
     }
 
     function monthKey(date) {
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+      return ${date.getFullYear()}-${pad(date.getMonth() + 1)};
     }
 
     function aggregateRows(history, mode) {
       const groups = new Map();
+
       for (const item of history) {
         const calc = calculateSession(item);
         const start = new Date(item.shiftStart);
@@ -513,43 +666,109 @@
         row.overtimePayTotal += calc.overtimePayTotal;
         row.paidEquivalent += calc.paidEquivalentMinutes;
       }
+
       return Array.from(groups.values()).sort((a,b) => a.key < b.key ? 1 : -1);
     }
 
-    function handleCheckIn() {
-      if (state.current) return;
-      const actual = new Date();
-      const detected = nearestShiftForCheckIn(actual);
-      const calcStart = getRoundedCheckIn(actual, detected.start);
-      state.current = {
-        id: String(Date.now()),
-        shiftType: detected.shift,
-        shiftLabel: detected.label,
-        shiftStart: detected.start.toISOString(),
-        shiftEnd: detected.end.toISOString(),
-        checkInActual: actual.toISOString(),
-        checkInCalc: calcStart.toISOString(),
-      };
-      saveState();
-      render();
+    async function register() {
+      const email = els.email.value.trim();
+      const password = els.password.value.trim();
+
+      if (!email || !password) {
+        setAuthStatus('Add meg az email címet és a jelszót.', true);
+        return;
+      }
+
+      const { error } = await supabase.auth.signUp({ email, password });
+
+      if (error) {
+        setAuthStatus('Hiba: ' + error.message, true);
+        return;
+      }
+
+      setAuthStatus('Regisztráció kész. Ha kell, erősítsd meg emailben is.');
     }
 
-    function handleCheckOut() {
-      if (!state.current) return;
-      const actualOut = new Date();
-      const completed = { ...state.current, checkOutActual: actualOut.toISOString() };
-      state.history.unshift(completed);
-      state.current = null;
-      saveState();
-      render();
+    async function login() {
+      const email = els.email.value.trim();
+      const password = els.password.value.trim();
+
+      if (!email || !password) {
+        setAuthStatus('Add meg az email címet és a jelszót.', true);
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (error) {
+        setAuthStatus('Hiba: ' + error.message, true);
+        return;
+      }
+
+      setAuthStatus('Sikeres belépés.');
     }
 
-    function clearAll() {
-      if (!confirm('Biztosan törlöd a teljes naplót?')) return;
+    async function logout() {
+      await supabase.auth.signOut();
+      state.user = null;
       state.current = null;
       state.history = [];
-      saveState();
       render();
+      setAuthStatus('Kijelentkezve.');
+    }
+
+    function setAuthStatus(message, isError = false) {
+      els.authStatus.textContent = message;
+      els.authStatus.className = isError ? 'subtle err' : 'subtle ok';
+    }
+
+    async function restoreUserData() {
+      if (!state.user) {
+        state.current = null;
+        state.history = [];
+        els.checkInBtn.disabled = true;
+        els.checkOutBtn.disabled = true;
+        els.clearAllBtn.disabled = true;
+        setAuthStatus('Nincs bejelentkezve.');
+        return;
+      }
+
+      state.current = loadCurrentFromLocal(state.user.id);
+      await loadLogsFromSupabase();
+      els.checkInBtn.disabled = false;
+      els.checkOutBtn.disabled = false;
+      els.clearAllBtn.disabled = false;
+      setAuthStatus('Belépve: ' + state.user.email);
+    }
+
+    async function loadLogsFromSupabase() {
+      if (!state.user) {
+        state.history = [];
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('work_logs')
+        .select('*')
+        .eq('user_id', state.user.id)
+        .order('shift_start', { ascending: false });
+
+      if (error) {
+        console.error(error.message);
+        state.history = [];
+        return;
+      }
+
+      state.history = (data || []).map(row => ({
+        id: row.id,
+        shiftType: row.shift_type,
+        shiftLabel: row.shift_label,
+        shiftStart: row.shift_start,
+        shiftEnd: row.shift_end,
+        checkInActual: row.check_in_actual,
+        checkInCalc: row.check_in_calc,
+        checkOutActual: row.check_out_actual
+      }));
     }
 
     function updateLiveClock() {
@@ -559,20 +778,109 @@
     function updateDetectedShift() {
       const detected = nearestShiftForCheckIn(new Date());
       els.detectedShiftLabel.textContent = detected.label;
-      els.detectedShiftRange.textContent = `Műszak: ${formatDateTime(detected.start)} – ${formatDateTime(detected.end)}`;
+      els.detectedShiftRange.textContent = Műszak: ${formatDateTime(detected.start)} – ${formatDateTime(detected.end)};
+    }
+
+    async function handleCheckIn() {
+      if (!state.user) {
+        alert('Előbb jelentkezz be.');
+        return;
+      }
+      if (state.current) return;
+
+      const actual = new Date();
+      const detected = nearestShiftForCheckIn(actual);
+      const calcStart = getRoundedCheckIn(actual, detected.start);
+
+      state.current = {
+        id: String(Date.now()),
+        shiftType: detected.shift,
+        shiftLabel: detected.label,
+        shiftStart: detected.start.toISOString(),
+        shiftEnd: detected.end.toISOString(),
+        checkInActual: actual.toISOString(),
+        checkInCalc: calcStart.toISOString()
+      };
+
+      saveCurrentToLocal(state.user.id, state.current);
+      render();
+    }
+
+    async function handleCheckOut() {
+      if (!state.user) {
+        alert('Előbb jelentkezz be.');
+        return;
+      }
+      if (!state.current) return;
+
+      const actualOut = new Date();
+      const completed = {
+        ...state.current,
+        checkOutActual: actualOut.toISOString()
+      };
+
+      const { error } = await supabase
+        .from('work_logs')
+        .insert({
+          user_id: state.user.id,
+          shift_type: completed.shiftType,
+          shift_label: completed.shiftLabel,
+          shift_start: completed.shiftStart,
+          shift_end: completed.shiftEnd,
+          check_in_actual: completed.checkInActual,
+          check_in_calc: completed.checkInCalc,
+          check_out_actual: completed.checkOutActual
+        });
+
+      if (error) {
+        alert('Mentési hiba: ' + error.message);
+        return;
+      }
+
+      clearCurrentFromLocal(state.user.id);
+      state.current = null;
+      await loadLogsFromSupabase();
+      render();
+    }
+
+    async function clearAllLogs() {
+      if (!state.user) {
+        alert('Előbb jelentkezz be.');
+        return;
+      }
+
+      if (!confirm('Biztosan törlöd a saját teljes naplódat?')) return;
+
+      const { error } = await supabase
+        .from('work_logs')
+        .delete()
+        .eq('user_id', state.user.id);
+
+      if (error) {
+        alert('Törlési hiba: ' + error.message);
+        return;
+      }
+
+      clearCurrentFromLocal(state.user.id);
+      state.current = null;
+      state.history = [];
+      render();
     }
 
     function renderActive() {
-      els.checkInBtn.disabled = !!state.current;
-      els.checkOutBtn.disabled = !state.current;
+      if (!state.user) {
+        els.activeBox.innerHTML = <div class="empty" style="margin-top:14px;">Jelentkezz be, és utána tudsz be / ki csekkolni.</div>;
+        return;
+      }
 
       if (!state.current) {
-        els.activeBox.innerHTML = `<div class="empty" style="margin-top:14px;">Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.</div>`;
+        els.activeBox.innerHTML = <div class="empty" style="margin-top:14px;">Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.</div>;
         return;
       }
 
       const current = state.current;
       const calc = calculateSession({ ...current, checkOutActual: new Date().toISOString() });
+
       els.activeBox.innerHTML = `
         <div class="active">
           <div><span class="badge">Aktív műszak</span> <strong>${current.shiftLabel}</strong></div>
@@ -609,7 +917,9 @@
         acc.otPayTotal += calc.overtimePayTotal;
         acc.paid += calc.paidEquivalentMinutes;
         return acc;
-      }, { rawBase:0, breakDeduction:0, paidBase:0, ot:0, ot50:0, ot100:0, otPay50:0, otPay100:0, otPayTotal:0, paid:0 });
+      }, {
+        rawBase:0, breakDeduction:0, paidBase:0, ot:0, ot50:0, ot100:0, otPay50:0, otPay100:0, otPayTotal:0, paid:0
+      });
 
       els.sumRaw.textContent = fmtDuration(totals.rawBase);
       els.sumBreak.textContent = fmtDuration(totals.breakDeduction);
@@ -617,7 +927,7 @@
       els.sumOt.textContent = fmtDuration(totals.ot);
       els.sumOt50.textContent = fmtDuration(totals.ot50);
       els.sumOt100.textContent = fmtDuration(totals.ot100);
-      els.sumPaidEquivalent.textContent = `${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó`;
+      els.sumPaidEquivalent.textContent = ${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó;
       els.sumOt50Pay.textContent = formatEuro(totals.otPay50);
       els.sumOt100Pay.textContent = formatEuro(totals.otPay100);
       els.sumOtTotalPay.textContent = formatEuro(totals.otPayTotal);
@@ -625,7 +935,9 @@
     }
 
     function buildTable(rows, firstCol, isMonthView) {
+      if (!state.user) return '<div class="empty">Jelentkezz be az adatok megtekintéséhez.</div>';
       if (!rows.length) return '<div class="empty">Még nincs adat.</div>';
+
       return `
         <div class="table-wrap">
           <table>
@@ -659,7 +971,7 @@
                   <td>${formatEuro(row.overtimePay50)}</td>
                   <td>${formatEuro(row.overtimePay100)}</td>
                   <td>${formatEuro(row.overtimePayTotal)}</td>
-                  ${isMonthView ? `<td>${formatEuro(FIXED_MONTHLY_GROSS)}</td><td>${formatEuro(FIXED_MONTHLY_GROSS + row.overtimePayTotal)}</td>` : ''}
+                  ${isMonthView ? <td>${formatEuro(FIXED_MONTHLY_GROSS)}</td><td>${formatEuro(FIXED_MONTHLY_GROSS + row.overtimePayTotal)}</td> : ''}
                 </tr>
               `).join('')}
             </tbody>
@@ -674,6 +986,11 @@
     }
 
     function renderLog() {
+      if (!state.user) {
+        els.logList.innerHTML = '<div class="empty">Jelentkezz be a saját naplód megtekintéséhez.</div>';
+        return;
+      }
+
       if (!state.history.length) {
         els.logList.innerHTML = '<div class="empty">Még nincs mentett műszak.</div>';
         return;
@@ -718,60 +1035,5 @@
       renderLog();
     }
   </script>
-<script>
-
-const supabase = window.supabase.createClient(
-"https://gbshydabzhghgmjdlowf.supabase.co/",
-"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic2h5ZGFiemhnaGdtamRsb3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Nzc5NzAsImV4cCI6MjA4OTE1Mzk3MH0.sosMlHDRCZs__QCQWwVjg7xP_ljuHNxWeg03JhmK-Kg"
-);
-
-async function register() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  const { error } = await supabase.auth.signUp({
-    email,
-    password
-  });
-
-  document.getElementById("authStatus").textContent =
-    error ? "Hiba: " + error.message : "Regisztráció kész";
-}
-
-async function login() {
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password
-  });
-
-  document.getElementById("authStatus").textContent =
-    error ? "Hiba: " + error.message : "Sikeres belépés";
-
-  await checkUser();
-}
-
-async function logout() {
-  await supabase.auth.signOut();
-  document.getElementById("authStatus").textContent = "Kijelentkezve";
-}
-
-async function checkUser() {
-  const { data } = await supabase.auth.getUser();
-
-  if (data.user) {
-    document.getElementById("authStatus").textContent =
-      "Belépve: " + data.user.email;
-  } else {
-    document.getElementById("authStatus").textContent =
-      "Nincs bejelentkezve";
-  }
-}
-
-checkUser();
-
-</script>
 </body>
 </html>
