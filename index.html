@@ -485,37 +485,59 @@
       render();
     }
 
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function formatDate(d) { 
-  return ${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}; 
+    function pad(n) { 
+  return String(n).padStart(2, '0'); 
 }
-    function formatTime(d) { 
+
+function formatDate(d) { 
+  return ${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}; 
+}
+
+function formatTime(d) { 
   return ${pad(d.getHours())}:${pad(d.getMinutes())}; 
 }
 
-    function formatDateTime(d) { return ${formatDate(d)} ${formatTime(d)}; }
-    function startOfDay(date) { const d = new Date(date); d.setHours(0,0,0,0); return d; }
-    function addMinutes(date, minutes) { return new Date(date.getTime() + minutes * 60000); }
-    function diffMinutes(a,b) { return Math.round((b.getTime() - a.getTime()) / 60000); }
-    function fmtDuration(minutes) {
-      const safe = Math.max(0, Math.round(minutes));
-      const h = Math.floor(safe / 60);
-      const m = safe % 60;
-      function fmtDuration(minutes) {
+function formatDateTime(d) { 
+  return ${formatDate(d)} ${formatTime(d)}; 
+}
+
+function startOfDay(date) { 
+  const d = new Date(date); 
+  d.setHours(0, 0, 0, 0); 
+  return d; 
+}
+
+function addMinutes(date, minutes) { 
+  return new Date(date.getTime() + minutes * 60000); 
+}
+
+function diffMinutes(a, b) { 
+  return Math.round((b.getTime() - a.getTime()) / 60000); 
+}
+
+function fmtDuration(minutes) {
   const safe = Math.max(0, Math.round(minutes));
   const h = Math.floor(safe / 60);
   const m = safe % 60;
   return ${h} ó ${pad(m)} p;
 }
-    function toDecimalHours(minutes) { return (Math.max(0, minutes) / 60).toFixed(2); }
-    function formatEuro(value) { return ${(value || 0).toFixed(2)} €; }
-    function quarterFloorFromShiftEnd(end, checkout) {
-      const diff = Math.max(0, diffMinutes(end, checkout));
-      return Math.floor(diff / 15) * 15;
-    }
+
+function toDecimalHours(minutes) { 
+  return (Math.max(0, minutes) / 60).toFixed(2); 
+}
+
+function formatEuro(value) { 
+  return ${(value || 0).toFixed(2)} €; 
+}
+
+function quarterFloorFromShiftEnd(end, checkout) {
+  const diff = Math.max(0, diffMinutes(end, checkout));
+  return Math.floor(diff / 15) * 15;
+} 
+    
 
     function currentKeyForUser(userId) {
-      return munkaido_current_${userId};
+     return `munkaido_current_${userId}`;
     }
 
     function loadCurrentFromLocal(userId) {
