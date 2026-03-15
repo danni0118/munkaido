@@ -308,7 +308,7 @@
       <div class="hero-top">
         <div>
           <h1>Munkaidő naplózó</h1>
-          <p>Többfelhasználós verzió bejelentkezéssel. A műszakok a saját fiókodhoz mentődnek, így más nem látja a te adataidat. Automatikus műszakfelismerés, 18 perc kajaszünet levonás, túlóra idő- és bérszámolás, napi / heti / havi összesítés.</p>
+          <p>Többfelhasználós verzió bejelentkezéssel. A műszakok a saját fiókodhoz mentődnek, így más nem látja a te adataidat. Mobilbarát, 2 gombos működés, automatikus műszakfelismerés, 18 perc kajaszünet levonás, túlóra idő- és bérszámolás, napi / heti / havi összesítés.</p>
           <div class="pillbar">
             <div class="pill">Délelőtt: 05:45–13:45</div>
             <div class="pill">Délután: 13:45–21:45</div>
@@ -485,59 +485,28 @@
       render();
     }
 
-    function pad(n) { 
-  return String(n).padStart(2, '0'); 
-}
-
-function formatDate(d) { 
-  return ${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}; 
-}
-
-function formatTime(d) { 
-  return ${pad(d.getHours())}:${pad(d.getMinutes())}; 
-}
-
-function formatDateTime(d) { 
-  return ${formatDate(d)} ${formatTime(d)}; 
-}
-
-function startOfDay(date) { 
-  const d = new Date(date); 
-  d.setHours(0, 0, 0, 0); 
-  return d; 
-}
-
-function addMinutes(date, minutes) { 
-  return new Date(date.getTime() + minutes * 60000); 
-}
-
-function diffMinutes(a, b) { 
-  return Math.round((b.getTime() - a.getTime()) / 60000); 
-}
-
-function fmtDuration(minutes) {
-  const safe = Math.max(0, Math.round(minutes));
-  const h = Math.floor(safe / 60);
-  const m = safe % 60;
-  return ${h} ó ${pad(m)} p;
-}
-
-function toDecimalHours(minutes) { 
-  return (Math.max(0, minutes) / 60).toFixed(2); 
-}
-
-function formatEuro(value) { 
-  return ${(value || 0).toFixed(2)} €; 
-}
-
-function quarterFloorFromShiftEnd(end, checkout) {
-  const diff = Math.max(0, diffMinutes(end, checkout));
-  return Math.floor(diff / 15) * 15;
-} 
-    
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function formatDate(d) { return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`; }
+    function formatTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+    function formatDateTime(d) { return `${formatDate(d)} ${formatTime(d)}`; }
+    function startOfDay(date) { const d = new Date(date); d.setHours(0,0,0,0); return d; }
+    function addMinutes(date, minutes) { return new Date(date.getTime() + minutes * 60000); }
+    function diffMinutes(a,b) { return Math.round((b.getTime() - a.getTime()) / 60000); }
+    function fmtDuration(minutes) {
+      const safe = Math.max(0, Math.round(minutes));
+      const h = Math.floor(safe / 60);
+      const m = safe % 60;
+      return `${h} ó ${pad(m)} p`;
+    }
+    function toDecimalHours(minutes) { return (Math.max(0, minutes) / 60).toFixed(2); }
+    function formatEuro(value) { return `${(value || 0).toFixed(2)} €`; }
+    function quarterFloorFromShiftEnd(end, checkout) {
+      const diff = Math.max(0, diffMinutes(end, checkout));
+      return Math.floor(diff / 15) * 15;
+    }
 
     function currentKeyForUser(userId) {
-     return `munkaido_current_${userId}`;
+      return `munkaido_current_${userId}`;
     }
 
     function loadCurrentFromLocal(userId) {
@@ -660,11 +629,11 @@ function quarterFloorFromShiftEnd(end, checkout) {
       const firstDayNum = (firstThursday.getDay() + 6) % 7;
       firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
       const week = 1 + Math.round((d - firstThursday) / 604800000);
-      return ${d.getFullYear()}-W${pad(week)};
+      return `${d.getFullYear()}-W${pad(week)}`;
     }
 
     function monthKey(date) {
-      return ${date.getFullYear()}-${pad(date.getMonth() + 1)};
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
     }
 
     function aggregateRows(history, mode) {
@@ -809,7 +778,7 @@ function quarterFloorFromShiftEnd(end, checkout) {
     function updateDetectedShift() {
       const detected = nearestShiftForCheckIn(new Date());
       els.detectedShiftLabel.textContent = detected.label;
-      els.detectedShiftRange.textContent = Műszak: ${formatDateTime(detected.start)} – ${formatDateTime(detected.end)};
+      els.detectedShiftRange.textContent = `Műszak: ${formatDateTime(detected.start)} – ${formatDateTime(detected.end)}`;
     }
 
     async function handleCheckIn() {
@@ -900,12 +869,12 @@ function quarterFloorFromShiftEnd(end, checkout) {
 
     function renderActive() {
       if (!state.user) {
-        els.activeBox.innerHTML = <div class="empty" style="margin-top:14px;">Jelentkezz be, és utána tudsz be / ki csekkolni.</div>;
+        els.activeBox.innerHTML = `<div class="empty" style="margin-top:14px;">Jelentkezz be, és utána tudsz be / ki csekkolni.</div>`;
         return;
       }
 
       if (!state.current) {
-        els.activeBox.innerHTML = <div class="empty" style="margin-top:14px;">Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.</div>;
+        els.activeBox.innerHTML = `<div class="empty" style="margin-top:14px;">Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.</div>`;
         return;
       }
 
@@ -958,7 +927,7 @@ function quarterFloorFromShiftEnd(end, checkout) {
       els.sumOt.textContent = fmtDuration(totals.ot);
       els.sumOt50.textContent = fmtDuration(totals.ot50);
       els.sumOt100.textContent = fmtDuration(totals.ot100);
-      els.sumPaidEquivalent.textContent = ${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó;
+      els.sumPaidEquivalent.textContent = `${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó`;
       els.sumOt50Pay.textContent = formatEuro(totals.otPay50);
       els.sumOt100Pay.textContent = formatEuro(totals.otPay100);
       els.sumOtTotalPay.textContent = formatEuro(totals.otPayTotal);
@@ -1002,7 +971,7 @@ function quarterFloorFromShiftEnd(end, checkout) {
                   <td>${formatEuro(row.overtimePay50)}</td>
                   <td>${formatEuro(row.overtimePay100)}</td>
                   <td>${formatEuro(row.overtimePayTotal)}</td>
-                  ${isMonthView ? <td>${formatEuro(FIXED_MONTHLY_GROSS)}</td><td>${formatEuro(FIXED_MONTHLY_GROSS + row.overtimePayTotal)}</td> : ''}
+                  ${isMonthView ? `<td>${formatEuro(FIXED_MONTHLY_GROSS)}</td><td>${formatEuro(FIXED_MONTHLY_GROSS + row.overtimePayTotal)}</td>` : ''}
                 </tr>
               `).join('')}
             </tbody>
