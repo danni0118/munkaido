@@ -206,6 +206,20 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="card" id="authBox" style="margin-bottom: 18px;">
+  <h2 class="section-title">Bejelentkezés</h2>
+  <div style="display:grid; gap:10px; max-width:420px;">
+    <input id="email" type="email" placeholder="Email cím">
+    <input id="password" type="password" placeholder="Jelszó">
+
+    <button onclick="register()">Regisztráció</button>
+    <button onclick="login()">Belépés</button>
+
+    <button onclick="logout()">Kijelentkezés</button>
+
+    <div id="authStatus">Nincs bejelentkezve</div>
+  </div>
+</div>
     <section class="hero">
       <div class="hero-top">
         <div>
@@ -718,11 +732,60 @@
       renderLog();
     }
   </script>
-  <script>
+<script>
+
 const supabase = window.supabase.createClient(
 "https://gbshydabzhghgmjdlowf.supabase.co/",
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic2h5ZGFiemhnaGdtamRsb3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Nzc5NzAsImV4cCI6MjA4OTE1Mzk3MH0.sosMlHDRCZs__QCQWwVjg7xP_ljuHNxWeg03JhmK-Kg"
 );
+
+async function register() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password
+  });
+
+  document.getElementById("authStatus").textContent =
+    error ? "Hiba: " + error.message : "Regisztráció kész";
+}
+
+async function login() {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  document.getElementById("authStatus").textContent =
+    error ? "Hiba: " + error.message : "Sikeres belépés";
+
+  await checkUser();
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+  document.getElementById("authStatus").textContent = "Kijelentkezve";
+}
+
+async function checkUser() {
+  const { data } = await supabase.auth.getUser();
+
+  if (data.user) {
+    document.getElementById("authStatus").textContent =
+      "Belépve: " + data.user.email;
+  } else {
+    document.getElementById("authStatus").textContent =
+      "Nincs bejelentkezve";
+  }
+}
+
+checkUser();
+
 </script>
 </body>
 </html>
