@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Munkaidő naplózó</title>
+<style>
+body{
+font-family:Arial;
+text-align:center;
+margin-top:100px;
+background:#f3f4f6;
+}
+button{
+font-size:24px;
+padding:20px 40px;
+margin:20px;
+border-radius:10px;
+border:none;
+cursor:pointer;
+}
+.in{background:#16a34a;color:white;}
+.out{background:#2563eb;color:white;}
+</style>
+</head>
+
+<body>
+
+<h1>Munkaidő naplózó</h1>
+
+<button class="in" onclick="checkin()">Be csekkolás</button>
+<button class="out" onclick="checkout()">Ki csekkolás</button>
+
+<p id="status"></p>
+
+<script>
+
+function getShift(now){
+
+let h=now.getHours();
+let m=now.getMinutes();
+let time=h*60+m;
+
+if(time>=345 && time<825) return "délelőtt";
+if(time>=825 && time<1305) return "délután";
+return "éjszaka";
+
+}
+
+function roundStart(now,shiftStart){
+
+let diff=(now-shiftStart)/60000;
+
+if(diff<=3 && diff>=-3) return shiftStart;
+
+if(diff>3){
+let block=Math.ceil(diff/15);
+return new Date(shiftStart.getTime()+block*15*60000);
+}
+
+return shiftStart;
+
+}
+
+function checkin(){
+
+let now=new Date();
+
+let shift=getShift(now);
+
+localStorage.setItem("checkin",now);
+
+document.getElementById("status").innerText=
+"Bejelentkezve: "+now;
+
+}
+
+function checkout(){
+
+let now=new Date();
+let start=new Date(localStorage.getItem("checkin"));
+
+if(!start){
+alert("Nincs bejelentkezés!");
+return;
+}
+
+let minutes=(now-start)/60000;
+
+document.getElementById("status").innerText=
+"Ledolgozott idő: "+Math.floor(minutes)+" perc";
+
+}
+
+</script>
+
+</body>
+</html>
