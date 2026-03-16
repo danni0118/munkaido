@@ -1,910 +1,340 @@
-<!DOCTYPE html>
-<html lang="hu">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Munkaidő naplózó</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <style>
-    :root {
-      --bg: #0f172a;
-      --panel: #111827;
-      --panel-2: #1f2937;
-      --card: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --line: #e5e7eb;
-      --green: #16a34a;
-      --blue: #2563eb;
-      --amber: #d97706;
-      --red: #dc2626;
-      --violet: #7c3aed;
-      --cyan: #0891b2;
-      --shadow: 0 10px 30px rgba(15, 23, 42, 0.10);
-      --radius: 18px;
+import React, { useEffect, useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Clock, LogIn, LogOut, Moon, Sun, Sunrise, Trash2, CalendarDays, Table2 } from "lucide-react";
+
+const STORAGE_KEY = "munkaido-naplozo-v2";
+const BREAK_MINUTES = 18;
+
+// Bér adatok
+const OVERTIME_200_RATE = 42.31; // 200% túlóra €/óra
+const OVERTIME_50_BONUS = 10.58; // +50% pótlék €/óra
+const BASE_HOURLY_RATE = OVERTIME_200_RATE / 2; // alap órabér
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatDate(d) {
+  return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}`;
+}
+
+function formatTime(d) {
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function formatDateTime(d) {
+  return `${formatDate(d)} ${formatTime(d)}`;
+}
+
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addMinutes(date, minutes) {
+  return new Date(date.getTime() + minutes * 60000);
+}
+
+function diffMinutes(a, b) {
+  return Math.round((b.getTime() - a.getTime()) / 60000);
+}
+
+function fmtDuration(minutes) {
+  const safe = Math.max(0, Math.round(minutes));
+  const h = Math.floor(safe / 60);
+  const m = safe % 60;
+  return `${h} ó ${pad(m)} p`;
+}
+
+function toDecimalHours(minutes) {
+  return (Math.max(0, minutes) / 60).toFixed(2);
+}
+
+function formatEuro(value) {
+  return `${(value || 0).toFixed(2)} €`;
+}
+
+function quarterFloorFromShiftEnd(end, checkout) {
+  const diff = Math.max(0, diffMinutes(end, checkout));
+  return Math.floor(diff / 15) * 15;
+}
+
+function buildShiftWindows(now) {
+  const today = startOfDay(now);
+  const yesterday = addMinutes(today, -1440);
+  const tomorrow = addMinutes(today, 1440);
+
+  return [
+    {
+      key: "morning-yesterday",
+      label: "Délelőtt",
+      shift: "morning",
+      start: addMinutes(yesterday, 5 * 60 + 45),
+      end: addMinutes(yesterday, 13 * 60 + 45),
+    },
+    {
+      key: "afternoon-yesterday",
+      label: "Délután",
+      shift: "afternoon",
+      start: addMinutes(yesterday, 13 * 60 + 45),
+      end: addMinutes(yesterday, 21 * 60 + 45),
+    },
+    {
+      key: "night-yesterday",
+      label: "Éjszaka",
+      shift: "night",
+      start: addMinutes(yesterday, 21 * 60 + 45),
+      end: addMinutes(today, 5 * 60 + 45),
+    },
+    {
+      key: "morning-today",
+      label: "Délelőtt",
+      shift: "morning",
+      start: addMinutes(today, 5 * 60 + 45),
+      end: addMinutes(today, 13 * 60 + 45),
+    },
+    {
+      key: "afternoon-today",
+      label: "Délután",
+      shift: "afternoon",
+      start: addMinutes(today, 13 * 60 + 45),
+      end: addMinutes(today, 21 * 60 + 45),
+    },
+    {
+      key: "night-today",
+      label: "Éjszaka",
+      shift: "night",
+      start: addMinutes(today, 21 * 60 + 45),
+      end: addMinutes(tomorrow, 5 * 60 + 45),
+    },
+  ];
+}
+
+function nearestShiftForCheckIn(now) {
+  const windows = buildShiftWindows(now);
+  let best = windows[0];
+  let bestAbs = Math.abs(now.getTime() - windows[0].start.getTime());
+
+  for (const w of windows) {
+    const abs = Math.abs(now.getTime() - w.start.getTime());
+    if (abs < bestAbs) {
+      best = w;
+      bestAbs = abs;
     }
+  }
 
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      font-family: Inter, Arial, sans-serif;
-      background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
-      color: var(--text);
-    }
-    body { min-height: 100vh; }
-    .wrap { max-width: 1240px; margin: 0 auto; padding: 16px; }
+  return best;
+}
 
-    .hero {
-      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-      color: white;
-      border-radius: 28px;
-      padding: 22px;
-      box-shadow: var(--shadow);
-      margin-bottom: 18px;
-    }
-    .hero-top {
-      display: flex;
-      gap: 14px;
-      justify-content: space-between;
-      align-items: flex-start;
-      flex-wrap: wrap;
-    }
-    .hero h1 { margin: 0 0 8px; font-size: 30px; }
-    .hero p { margin: 0; color: #cbd5e1; line-height: 1.45; }
+function getRoundedCheckIn(now, shiftStart) {
+  const earlyToleranceStart = addMinutes(shiftStart, -3);
+  const lateGraceEnd = addMinutes(shiftStart, 3);
 
-    .pillbar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-    .pill {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.08);
-      padding: 10px 14px;
-      border-radius: 999px;
-      font-size: 14px;
-    }
+  if (now >= earlyToleranceStart && now <= shiftStart) {
+    return new Date(shiftStart);
+  }
 
-    .timebox {
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 20px;
-      padding: 14px 16px;
-      min-width: 220px;
-    }
-    .timebox .label { color: #cbd5e1; font-size: 13px; }
-    .timebox .value { margin-top: 6px; font-size: 24px; font-weight: 800; }
+  if (now > shiftStart && now <= lateGraceEnd) {
+    return new Date(shiftStart);
+  }
 
-    .grid { display: grid; gap: 18px; }
-    .grid-main { grid-template-columns: 1.3fr 0.9fr; }
+  if (now > lateGraceEnd) {
+    const minutesLate = diffMinutes(shiftStart, now);
+    const roundedBlocks = Math.ceil(minutesLate / 15);
+    return addMinutes(shiftStart, roundedBlocks * 15);
+  }
 
-    .card {
-      background: var(--card);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 18px;
-      border: 1px solid rgba(226, 232, 240, 0.8);
-    }
+  return new Date(now);
+}
 
-    .section-title { font-size: 20px; font-weight: 800; margin: 0 0 14px; }
-    .subtle { color: var(--muted); font-size: 14px; }
+function getOvertimeBuckets(shiftType, shiftEnd, checkout) {
+  const totalRounded = quarterFloorFromShiftEnd(shiftEnd, checkout);
+  let fifty = 0;
+  let hundred = 0;
 
-    .auth-grid {
-      display: grid;
-      gap: 10px;
-      max-width: 460px;
-    }
-    .input {
-      width: 100%;
-      padding: 14px;
-      border: 1px solid #d1d5db;
-      border-radius: 12px;
-      font-size: 16px;
-      outline: none;
-      background: white;
-    }
-    .input:focus {
-      border-color: #60a5fa;
-      box-shadow: 0 0 0 3px rgba(96, 165, 250, .15);
-    }
+  if (shiftType === "morning") {
+    fifty = totalRounded;
+  } else {
+    hundred = totalRounded;
+  }
 
-    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    .btn {
-      border: none;
-      border-radius: 16px;
-      padding: 18px 16px;
-      color: white;
-      font-size: 18px;
-      font-weight: 800;
-      cursor: pointer;
-      transition: transform .12s ease, opacity .12s ease;
-      box-shadow: var(--shadow);
-    }
-    .btn:hover { transform: translateY(-1px); }
-    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-    .btn-in { background: linear-gradient(135deg, #16a34a, #15803d); }
-    .btn-out { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+  return { totalRounded, fifty, hundred };
+}
 
-    .small-btn {
-      background: #fff;
-      color: var(--text);
-      border: 1px solid #d1d5db;
-      border-radius: 12px;
-      padding: 12px 14px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-    .small-btn.primary {
-      background: #eff6ff;
-      color: #1d4ed8;
-      border-color: #bfdbfe;
-    }
-    .small-btn.danger {
-      color: var(--red);
-      border-color: #fecaca;
-      background: #fff5f5;
-    }
+function sessionDateKey(record) {
+  return formatDate(new Date(record.shiftStart));
+}
 
-    .info-banner {
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 14px;
-      margin-top: 14px;
-    }
+function weekKey(date) {
+  const d = new Date(date);
+  const dayNum = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - dayNum + 3);
+  const firstThursday = new Date(d.getFullYear(), 0, 4);
+  const firstDayNum = (firstThursday.getDay() + 6) % 7;
+  firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
+  const week = 1 + Math.round((d - firstThursday) / 604800000);
+  return `${d.getFullYear()}-W${pad(week)}`;
+}
 
-    .active {
-      background: #ecfeff;
-      border: 1px solid #a5f3fc;
-      border-radius: 18px;
-      padding: 16px;
-      margin-top: 14px;
-    }
+function monthKey(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
 
-    .kv {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap: 10px 16px;
-      margin-top: 10px;
-    }
-    .kv div {
-      background: rgba(255,255,255,0.7);
-      border-radius: 12px;
-      padding: 10px 12px;
-    }
-    .kv .k {
-      color: var(--muted);
-      font-size: 12px;
-      display: block;
-      margin-bottom: 3px;
-    }
+function calculateSession(record) {
+  const checkInCalc = new Date(record.checkInCalc);
+  const shiftEnd = new Date(record.shiftEnd);
+  const checkoutActual = record.checkOutActual ? new Date(record.checkOutActual) : null;
 
-    .stats { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; margin-top: 14px; }
-    .stat {
-      background: #fff;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 14px;
-    }
-    .stat .l { color: var(--muted); font-size: 12px; }
-    .stat .v { margin-top: 6px; font-size: 22px; font-weight: 800; }
+  const rawBaseMinutes = checkoutActual
+    ? Math.max(0, Math.min(diffMinutes(checkInCalc, checkoutActual), diffMinutes(checkInCalc, shiftEnd)))
+    : 0;
 
-    .rules { display: grid; gap: 10px; }
-    .rule {
-      border-left: 4px solid #cbd5e1;
-      background: #f8fafc;
-      border-radius: 0 12px 12px 0;
-      padding: 10px 12px;
-      font-size: 14px;
-      line-height: 1.45;
-    }
+  const breakDeduction = rawBaseMinutes > 0 ? BREAK_MINUTES : 0;
+  const paidBaseMinutes = Math.max(0, rawBaseMinutes - breakDeduction);
 
-    .summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 12px; }
-    .summary-grid.secondary { grid-template-columns: repeat(7, minmax(0,1fr)); margin-top: 12px; }
+  const overtime = checkoutActual
+    ? getOvertimeBuckets(record.shiftType, shiftEnd, checkoutActual)
+    : { totalRounded: 0, fifty: 0, hundred: 0 };
 
-    .summary-foot {
-      margin-top: 12px;
-      background: #f8fafc;
-      border: 1px solid #e2e8f0;
-      border-radius: 16px;
-      padding: 14px;
-      font-weight: 700;
-    }
+  // túlóra órák
+  const ot50h = overtime.fifty / 60;
+  const ot100h = overtime.hundred / 60;
 
-    .toolbar {
-      display: flex;
-      gap: 10px;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-    }
+  // túlóra bér számítás
+  const pay50 = ot50h * (BASE_HOURLY_RATE + OVERTIME_50_BONUS);
+  const pay100 = ot100h * OVERTIME_200_RATE;
 
-    .table-wrap { overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 16px; }
-    table { width: 100%; border-collapse: collapse; min-width: 1040px; background: white; }
-    th, td {
-      padding: 12px 12px;
-      border-bottom: 1px solid #e5e7eb;
-      text-align: left;
-      font-size: 14px;
-    }
-    th {
-      background: #f8fafc;
-      color: #334155;
-      font-size: 13px;
-      position: sticky;
-      top: 0;
-    }
-    tr:hover td { background: #fafcff; }
+  return {
+    rawBaseMinutes,
+    breakDeduction,
+    paidBaseMinutes,
+    overtimeMinutes: overtime.totalRounded,
+    overtime50: overtime.fifty,
+    overtime100: overtime.hundred,
+    overtimePay50: pay50,
+    overtimePay100: pay100,
+    overtimePayTotal: pay50 + pay100,
+    paidEquivalentMinutes: paidBaseMinutes + overtime.fifty * 1.5 + overtime.hundred * 2,
+  };
+}
 
-    .log-item {
-      border: 1px solid #e5e7eb;
-      border-radius: 18px;
-      padding: 14px;
-      margin-top: 12px;
-      overflow-x: auto;
-      background: white;
-    }
+function shiftIcon(type) {
+  if (type === "morning") return <Sunrise className="h-4 w-4" />;
+  if (type === "afternoon") return <Sun className="h-4 w-4" />;
+  return <Moon className="h-4 w-4" />;
+}
 
-    .badge {
-      display: inline-block;
-      padding: 8px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 800;
-      background: #eff6ff;
-      color: #1d4ed8;
-      margin-right: 8px;
-    }
+function aggregateRows(history, mode) {
+  const groups = new Map();
 
-    .muted { color: var(--muted); }
+  for (const item of history) {
+    const calc = calculateSession(item);
+    const start = new Date(item.shiftStart);
+    const key = mode === "day" ? sessionDateKey(item) : mode === "week" ? weekKey(start) : monthKey(start);
 
-    .empty {
-      border: 2px dashed #cbd5e1;
-      border-radius: 18px;
-      padding: 24px;
-      text-align: center;
-      color: var(--muted);
-      background: #f8fafc;
-    }
-
-    .ok { color: #15803d; }
-    .err { color: #b91c1c; }
-
-    @media (max-width: 1100px) {
-      .grid-main { grid-template-columns: 1fr; }
-      .summary-grid, .summary-grid.secondary, .stats { grid-template-columns: repeat(2, minmax(0,1fr)); }
-    }
-
-    @media (max-width: 720px) {
-      .hero h1 { font-size: 25px; }
-      .action-grid { grid-template-columns: 1fr; }
-      .kv { grid-template-columns: 1fr; }
-      .summary-grid, .summary-grid.secondary, .stats { grid-template-columns: 1fr; }
-      .timebox { width: 100%; }
-      .wrap { padding: 12px; }
-      .card { padding: 14px; }
-      .btn { font-size: 17px; }
-      table { min-width: 920px; }
-    }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <section class="card" style="margin-bottom: 18px;">
-      <div class="toolbar">
-        <h2 class="section-title" style="margin:0;">Bejelentkezés</h2>
-        <div id="authStatus" class="subtle">Nincs bejelentkezve</div>
-      </div>
-
-      <div class="auth-grid" style="margin-top: 14px;">
-        <input id="email" class="input" type="email" placeholder="Email cím" />
-        <input id="password" class="input" type="password" placeholder="Jelszó" />
-        <div class="action-grid">
-          <button id="registerBtn" class="small-btn">Regisztráció</button>
-          <button id="loginBtn" class="small-btn primary">Belépés</button>
-        </div>
-        <button id="logoutBtn" class="small-btn danger">Kijelentkezés</button>
-      </div>
-    </section>
-
-    <section class="hero">
-      <div class="hero-top">
-        <div>
-          <h1>Munkaidő naplózó</h1>
-          <p>Többfelhasználós verzió bejelentkezéssel. A műszakok a saját fiókodhoz mentődnek, így más nem látja a te adataidat. Mobilbarát, 2 gombos működés, automatikus műszakfelismerés, 18 perc kajaszünet levonás, túlóra idő- és bérszámolás, napi / heti / havi összesítés.</p>
-          <div class="pillbar">
-            <div class="pill">Délelőtt: 05:45–13:45</div>
-            <div class="pill">Délután: 13:45–21:45</div>
-            <div class="pill">Éjszaka: 21:45–05:45</div>
-          </div>
-        </div>
-        <div class="timebox">
-          <div class="label">Aktuális idő</div>
-          <div class="value" id="liveNow">—</div>
-        </div>
-      </div>
-    </section>
-
-    <div class="grid grid-main">
-      <section class="card">
-        <h2 class="section-title">Be / Ki csekkolás</h2>
-        <div class="action-grid">
-          <button class="btn btn-in" id="checkInBtn">Be csekkolás</button>
-          <button class="btn btn-out" id="checkOutBtn">Ki csekkolás</button>
-        </div>
-
-        <div class="info-banner">
-          <div class="subtle">Most felismerhető műszak</div>
-          <div style="font-size: 22px; font-weight: 800; margin-top: 4px;" id="detectedShiftLabel">—</div>
-          <div class="subtle" style="margin-top: 6px;" id="detectedShiftRange">—</div>
-        </div>
-
-        <div id="activeBox"></div>
-      </section>
-
-      <aside class="card">
-        <h2 class="section-title">Szabályok</h2>
-        <div class="rules">
-          <div class="rule">Ha legfeljebb <strong>3 perccel korábban</strong> vagy <strong>3 perccel később</strong> csekkolsz be, akkor a műszakkezdéstől számol.</div>
-          <div class="rule">Ha késel, a rendszer a be csekkolást <strong>15 perces blokkokra felfelé</strong> kerekíti. Példa: 05:47 → 06:00, 13:46 → 14:00, 21:56 → 22:00.</div>
-          <div class="rule">Minden ledolgozott napból automatikusan levon <strong>18 perc kajaszünetet</strong>.</div>
-          <div class="rule">Délelőttös műszak után a túlóra <strong>50%</strong>, délutános és éjszakás műszak után <strong>100%</strong>.</div>
-          <div class="rule">A túlóra a műszak vége után indul, és <strong>15 percenként lefelé</strong> kerekítve számolódik.</div>
-          <div class="rule"><strong>100% túlóra:</strong> 42.31 € / óra</div>
-          <div class="rule"><strong>50% túlóra pótlék:</strong> +10.58 € / óra</div>
-          <div class="rule"><strong>Fix havi bruttó:</strong> 3533 € — ez csak a havi nézetben adódik hozzá a havi túlórákhoz.</div>
-        </div>
-      </aside>
-    </div>
-
-    <section class="card" style="margin-top: 18px;">
-      <div class="toolbar">
-        <h2 class="section-title" style="margin:0;">Teljes összesítés</h2>
-        <button class="small-btn danger" id="clearAllBtn">Napló törlése</button>
-      </div>
-
-      <div class="summary-grid" style="margin-top: 14px;">
-        <div class="stat"><div class="l">50% túlóra bér</div><div class="v" id="sumOt50Pay">0.00 €</div></div>
-        <div class="stat"><div class="l">100% túlóra bér</div><div class="v" id="sumOt100Pay">0.00 €</div></div>
-        <div class="stat"><div class="l">Túlóra bér összesen</div><div class="v" id="sumOtTotalPay">0.00 €</div></div>
-        <div class="stat"><div class="l">Fix havi bruttó</div><div class="v">3533.00 €</div></div>
-        <div class="stat"><div class="l">Becsült bruttó + túlóra</div><div class="v" id="sumGrossPlusOt">3533.00 €</div></div>
-      </div>
-
-      <div class="summary-grid secondary">
-        <div class="stat"><div class="l">Nyers alapidő</div><div class="v" id="sumRaw">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">Kajaszünet levonás</div><div class="v" id="sumBreak">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">Fizetett alapidő</div><div class="v" id="sumPaidBase">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">Túlóra összesen</div><div class="v" id="sumOt">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">50% túlóra</div><div class="v" id="sumOt50">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">100% túlóra</div><div class="v" id="sumOt100">0 ó 00 p</div></div>
-        <div class="stat"><div class="l">Kifizetett idő</div><div class="v" id="sumPaidEquivalent">0 ó 00 p</div></div>
-      </div>
-
-      <div class="summary-foot">A teljes összesítésben a <strong>3533 € fix havi bér</strong> tájékoztató jelleggel látszik. A havi táblázatban adódik hozzá ténylegesen a havi túlórához.</div>
-    </section>
-
-    <section class="card" style="margin-top: 18px;">
-      <h2 class="section-title">Napi összesítés</h2>
-      <div id="dayTable"></div>
-    </section>
-
-    <section class="card" style="margin-top: 18px;">
-      <h2 class="section-title">Heti összesítés</h2>
-      <div id="weekTable"></div>
-    </section>
-
-    <section class="card" style="margin-top: 18px;">
-      <h2 class="section-title">Havi összesítés</h2>
-      <div id="monthTable"></div>
-    </section>
-
-    <section class="card" style="margin-top: 18px; margin-bottom: 28px;">
-      <h2 class="section-title">Részletes napló</h2>
-      <div id="logList"></div>
-    </section>
-  </div>
-
-  <script>
-    // === CSAK EZT A 2 SORT CSERÉLD KI A SAJÁTODRA ===
-    const SUPABASE_URL = "https://gbshydabzhghgmjdlowf.supabase.co/";
-    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic2h5ZGFiemhnaGdtamRsb3dmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM1Nzc5NzAsImV4cCI6MjA4OTE1Mzk3MH0.sosMlHDRCZs__QCQWwVjg7xP_ljuHNxWeg03JhmK-Kg";
-    // ===============================================
-
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-    const BREAK_MINUTES = 18;
-    const OVERTIME_200_RATE = 42.31;
-    const OVERTIME_50_BONUS = 10.58;
-    const BASE_HOURLY_RATE = OVERTIME_200_RATE / 2;
-    const FIXED_MONTHLY_GROSS = 3533;
-
-    const state = {
-      user: null,
-      current: null,
-      history: []
-    };
-
-    const els = {
-      liveNow: document.getElementById('liveNow'),
-      detectedShiftLabel: document.getElementById('detectedShiftLabel'),
-      detectedShiftRange: document.getElementById('detectedShiftRange'),
-      activeBox: document.getElementById('activeBox'),
-      dayTable: document.getElementById('dayTable'),
-      weekTable: document.getElementById('weekTable'),
-      monthTable: document.getElementById('monthTable'),
-      logList: document.getElementById('logList'),
-      checkInBtn: document.getElementById('checkInBtn'),
-      checkOutBtn: document.getElementById('checkOutBtn'),
-      clearAllBtn: document.getElementById('clearAllBtn'),
-      sumRaw: document.getElementById('sumRaw'),
-      sumBreak: document.getElementById('sumBreak'),
-      sumPaidBase: document.getElementById('sumPaidBase'),
-      sumOt: document.getElementById('sumOt'),
-      sumOt50: document.getElementById('sumOt50'),
-      sumOt100: document.getElementById('sumOt100'),
-      sumPaidEquivalent: document.getElementById('sumPaidEquivalent'),
-      sumOt50Pay: document.getElementById('sumOt50Pay'),
-      sumOt100Pay: document.getElementById('sumOt100Pay'),
-      sumOtTotalPay: document.getElementById('sumOtTotalPay'),
-      sumGrossPlusOt: document.getElementById('sumGrossPlusOt'),
-      email: document.getElementById('email'),
-      password: document.getElementById('password'),
-      registerBtn: document.getElementById('registerBtn'),
-      loginBtn: document.getElementById('loginBtn'),
-      logoutBtn: document.getElementById('logoutBtn'),
-      authStatus: document.getElementById('authStatus')
-    };
-
-    els.checkInBtn.addEventListener('click', handleCheckIn);
-    els.checkOutBtn.addEventListener('click', handleCheckOut);
-    els.clearAllBtn.addEventListener('click', clearAllLogs);
-    els.registerBtn.addEventListener('click', register);
-    els.loginBtn.addEventListener('click', login);
-    els.logoutBtn.addEventListener('click', logout);
-
-    init();
-
-    async function init() {
-      updateLiveClock();
-      updateDetectedShift();
-      render();
-
-      setInterval(() => {
-        updateLiveClock();
-        updateDetectedShift();
-        renderActive();
-      }, 1000);
-
-      supabase.auth.onAuthStateChange(async (_event, session) => {
-        state.user = session?.user || null;
-        await restoreUserData();
-        render();
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        sessions: 0,
+        rawBase: 0,
+        breakDeduction: 0,
+        paidBase: 0,
+        overtime: 0,
+        overtime50: 0,
+        overtime100: 0,
+        overtimePay50: 0,
+        overtimePay100: 0,
+        overtimePayTotal: 0,
+        paidEquivalent: 0,
       });
-
-      const { data } = await supabase.auth.getSession();
-      state.user = data.session?.user || null;
-      await restoreUserData();
-      render();
     }
 
-    function pad(n) { return String(n).padStart(2, '0'); }
-    function formatDate(d) { return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`; }
-    function formatTime(d) { return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-    function formatDateTime(d) { return `${formatDate(d)} ${formatTime(d)}`; }
-    function startOfDay(date) { const d = new Date(date); d.setHours(0,0,0,0); return d; }
-    function addMinutes(date, minutes) { return new Date(date.getTime() + minutes * 60000); }
-    function diffMinutes(a,b) { return Math.round((b.getTime() - a.getTime()) / 60000); }
-    function fmtDuration(minutes) {
-      const safe = Math.max(0, Math.round(minutes));
-      const h = Math.floor(safe / 60);
-      const m = safe % 60;
-      return `${h} ó ${pad(m)} p`;
-    }
-    function toDecimalHours(minutes) { return (Math.max(0, minutes) / 60).toFixed(2); }
-    function formatEuro(value) { return `${(value || 0).toFixed(2)} €`; }
-    function quarterFloorFromShiftEnd(end, checkout) {
-      const diff = Math.max(0, diffMinutes(end, checkout));
-      return Math.floor(diff / 15) * 15;
-    }
+    const row = groups.get(key);
+    row.sessions += 1;
+    row.rawBase += calc.rawBaseMinutes;
+    row.breakDeduction += calc.breakDeduction;
+    row.paidBase += calc.paidBaseMinutes;
+    row.overtime += calc.overtimeMinutes;
+    row.overtime50 += calc.overtime50;
+    row.overtime100 += calc.overtime100;
+    row.overtimePay50 += calc.overtimePay50;
+    row.overtimePay100 += calc.overtimePay100;
+    row.overtimePayTotal += calc.overtimePayTotal;
+    row.paidEquivalent += calc.paidEquivalentMinutes;
+  }
 
-    function currentKeyForUser(userId) {
-      return `munkaido_current_${userId}`;
-    }
+  return Array.from(groups.values()).sort((a, b) => (a.key < b.key ? 1 : -1));
+}
 
-    function loadCurrentFromLocal(userId) {
+export default function MunkaidoNaplozo() {
+  const [now, setNow] = useState(new Date());
+  const [current, setCurrent] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
       try {
-        const raw = localStorage.getItem(currentKeyForUser(userId));
-        return raw ? JSON.parse(raw) : null;
-      } catch {
-        return null;
-      }
+        const parsed = JSON.parse(saved);
+        setCurrent(parsed.current || null);
+        setHistory(parsed.history || []);
+      } catch {}
     }
-
-    function saveCurrentToLocal(userId, current) {
-      localStorage.setItem(currentKeyForUser(userId), JSON.stringify(current));
-    }
-
-    function clearCurrentFromLocal(userId) {
-      localStorage.removeItem(currentKeyForUser(userId));
-    }
-
-    function buildShiftWindows(now) {
-      const today = startOfDay(now);
-      const yesterday = addMinutes(today, -1440);
-      const tomorrow = addMinutes(today, 1440);
-
-      return [
-        { key: 'morning-yesterday', label: 'Délelőtt', shift: 'morning', start: addMinutes(yesterday, 5*60+45), end: addMinutes(yesterday, 13*60+45) },
-        { key: 'afternoon-yesterday', label: 'Délután', shift: 'afternoon', start: addMinutes(yesterday, 13*60+45), end: addMinutes(yesterday, 21*60+45) },
-        { key: 'night-yesterday', label: 'Éjszaka', shift: 'night', start: addMinutes(yesterday, 21*60+45), end: addMinutes(today, 5*60+45) },
-        { key: 'morning-today', label: 'Délelőtt', shift: 'morning', start: addMinutes(today, 5*60+45), end: addMinutes(today, 13*60+45) },
-        { key: 'afternoon-today', label: 'Délután', shift: 'afternoon', start: addMinutes(today, 13*60+45), end: addMinutes(today, 21*60+45) },
-        { key: 'night-today', label: 'Éjszaka', shift: 'night', start: addMinutes(today, 21*60+45), end: addMinutes(tomorrow, 5*60+45) }
-      ];
-    }
-
-    function nearestShiftForCheckIn(now) {
-      const windows = buildShiftWindows(now);
-      let best = windows[0];
-      let bestAbs = Math.abs(now.getTime() - windows[0].start.getTime());
-
-      for (const w of windows) {
-        const abs = Math.abs(now.getTime() - w.start.getTime());
-        if (abs < bestAbs) {
-          best = w;
-          bestAbs = abs;
-        }
-      }
-      return best;
-    }
-
-    function getRoundedCheckIn(now, shiftStart) {
-      const earlyToleranceStart = addMinutes(shiftStart, -3);
-      const lateGraceEnd = addMinutes(shiftStart, 3);
-
-      if (now >= earlyToleranceStart && now <= shiftStart) return new Date(shiftStart);
-      if (now > shiftStart && now <= lateGraceEnd) return new Date(shiftStart);
-
-      if (now > lateGraceEnd) {
-        const minutesLate = diffMinutes(shiftStart, now);
-        const roundedBlocks = Math.ceil(minutesLate / 15);
-        return addMinutes(shiftStart, roundedBlocks * 15);
-      }
-      return new Date(now);
-    }
-
-    function getOvertimeBuckets(shiftType, shiftEnd, checkout) {
-      const totalRounded = quarterFloorFromShiftEnd(shiftEnd, checkout);
-      let fifty = 0;
-      let hundred = 0;
-
-      if (shiftType === 'morning') fifty = totalRounded;
-      else hundred = totalRounded;
-
-      return { totalRounded, fifty, hundred };
-    }
-
-    function calculateSession(record) {
-      const checkInCalc = new Date(record.checkInCalc);
-      const shiftEnd = new Date(record.shiftEnd);
-      const checkoutActual = record.checkOutActual ? new Date(record.checkOutActual) : null;
-
-      const rawBaseMinutes = checkoutActual
-        ? Math.max(0, Math.min(diffMinutes(checkInCalc, checkoutActual), diffMinutes(checkInCalc, shiftEnd)))
-        : 0;
-
-      const breakDeduction = rawBaseMinutes > 0 ? BREAK_MINUTES : 0;
-      const paidBaseMinutes = Math.max(0, rawBaseMinutes - breakDeduction);
-
-      const overtime = checkoutActual
-        ? getOvertimeBuckets(record.shiftType, shiftEnd, checkoutActual)
-        : { totalRounded: 0, fifty: 0, hundred: 0 };
-
-      const ot50h = overtime.fifty / 60;
-      const ot100h = overtime.hundred / 60;
-      const overtimePay50 = ot50h * (BASE_HOURLY_RATE + OVERTIME_50_BONUS);
-      const overtimePay100 = ot100h * OVERTIME_200_RATE;
-
-      return {
-        rawBaseMinutes,
-        breakDeduction,
-        paidBaseMinutes,
-        overtimeMinutes: overtime.totalRounded,
-        overtime50: overtime.fifty,
-        overtime100: overtime.hundred,
-        overtimePay50,
-        overtimePay100,
-        overtimePayTotal: overtimePay50 + overtimePay100,
-        paidEquivalentMinutes: paidBaseMinutes + overtime.fifty * 1.5 + overtime.hundred * 2,
-      };
-    }
-
-    function sessionDateKey(record) {
-      return formatDate(new Date(record.shiftStart));
-    }
-
-    function weekKey(date) {
-      const d = new Date(date);
-      const dayNum = (d.getDay() + 6) % 7;
-      d.setDate(d.getDate() - dayNum + 3);
-      const firstThursday = new Date(d.getFullYear(), 0, 4);
-      const firstDayNum = (firstThursday.getDay() + 6) % 7;
-      firstThursday.setDate(firstThursday.getDate() - firstDayNum + 3);
-      const week = 1 + Math.round((d - firstThursday) / 604800000);
-      return `${d.getFullYear()}-W${pad(week)}`;
-    }
-
-    function monthKey(date) {
-      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
-    }
-
-    function aggregateRows(history, mode) {
-      const groups = new Map();
-
-      for (const item of history) {
-        const calc = calculateSession(item);
-        const start = new Date(item.shiftStart);
-        const key = mode === 'day' ? sessionDateKey(item) : mode === 'week' ? weekKey(start) : monthKey(start);
-
-        if (!groups.has(key)) {
-          groups.set(key, {
-            key, sessions: 0, rawBase: 0, breakDeduction: 0, paidBase: 0,
-            overtime: 0, overtime50: 0, overtime100: 0,
-            overtimePay50: 0, overtimePay100: 0, overtimePayTotal: 0,
-            paidEquivalent: 0
-          });
-        }
-
-        const row = groups.get(key);
-        row.sessions += 1;
-        row.rawBase += calc.rawBaseMinutes;
-        row.breakDeduction += calc.breakDeduction;
-        row.paidBase += calc.paidBaseMinutes;
-        row.overtime += calc.overtimeMinutes;
-        row.overtime50 += calc.overtime50;
-        row.overtime100 += calc.overtime100;
-        row.overtimePay50 += calc.overtimePay50;
-        row.overtimePay100 += calc.overtimePay100;
-        row.overtimePayTotal += calc.overtimePayTotal;
-        row.paidEquivalent += calc.paidEquivalentMinutes;
-      }
-
-      return Array.from(groups.values()).sort((a,b) => a.key < b.key ? 1 : -1);
-    }
-
-    async function register() {
-      const email = els.email.value.trim();
-      const password = els.password.value.trim();
-
-      if (!email || !password) {
-        setAuthStatus('Add meg az email címet és a jelszót.', true);
-        return;
-      }
-
-      const { error } = await supabase.auth.signUp({ email, password });
-
-      if (error) {
-        setAuthStatus('Hiba: ' + error.message, true);
-        return;
-      }
-
-      setAuthStatus('Regisztráció kész. Ha kell, erősítsd meg emailben is.');
-    }
-
-    async function login() {
-      const email = els.email.value.trim();
-      const password = els.password.value.trim();
-
-      if (!email || !password) {
-        setAuthStatus('Add meg az email címet és a jelszót.', true);
-        return;
-      }
-
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-      if (error) {
-        setAuthStatus('Hiba: ' + error.message, true);
-        return;
-      }
-
-      setAuthStatus('Sikeres belépés.');
-    }
-
-    async function logout() {
-      await supabase.auth.signOut();
-      state.user = null;
-      state.current = null;
-      state.history = [];
-      render();
-      setAuthStatus('Kijelentkezve.');
-    }
-
-    function setAuthStatus(message, isError = false) {
-      els.authStatus.textContent = message;
-      els.authStatus.className = isError ? 'subtle err' : 'subtle ok';
-    }
-
-    async function restoreUserData() {
-      if (!state.user) {
-        state.current = null;
-        state.history = [];
-        els.checkInBtn.disabled = true;
-        els.checkOutBtn.disabled = true;
-        els.clearAllBtn.disabled = true;
-        setAuthStatus('Nincs bejelentkezve.');
-        return;
-      }
-
-      state.current = loadCurrentFromLocal(state.user.id);
-      await loadLogsFromSupabase();
-      els.checkInBtn.disabled = false;
-      els.checkOutBtn.disabled = false;
-      els.clearAllBtn.disabled = false;
-      setAuthStatus('Belépve: ' + state.user.email);
-    }
-
-    async function loadLogsFromSupabase() {
-      if (!state.user) {
-        state.history = [];
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from('work_logs')
-        .select('*')
-        .eq('user_id', state.user.id)
-        .order('shift_start', { ascending: false });
-
-      if (error) {
-        console.error(error.message);
-        state.history = [];
-        return;
-      }
-
-      state.history = (data || []).map(row => ({
-        id: row.id,
-        shiftType: row.shift_type,
-        shiftLabel: row.shift_label,
-        shiftStart: row.shift_start,
-        shiftEnd: row.shift_end,
-        checkInActual: row.check_in_actual,
-        checkInCalc: row.check_in_calc,
-        checkOutActual: row.check_out_actual
-      }));
-    }
-
-    function updateLiveClock() {
-      els.liveNow.textContent = formatDateTime(new Date());
-    }
-
-    function updateDetectedShift() {
-      const detected = nearestShiftForCheckIn(new Date());
-      els.detectedShiftLabel.textContent = detected.label;
-      els.detectedShiftRange.textContent = `Műszak: ${formatDateTime(detected.start)} – ${formatDateTime(detected.end)}`;
-    }
-
-    async function handleCheckIn() {
-      if (!state.user) {
-        alert('Előbb jelentkezz be.');
-        return;
-      }
-      if (state.current) return;
-
-      const actual = new Date();
-      const detected = nearestShiftForCheckIn(actual);
-      const calcStart = getRoundedCheckIn(actual, detected.start);
-
-      state.current = {
-        id: String(Date.now()),
-        shiftType: detected.shift,
-        shiftLabel: detected.label,
-        shiftStart: detected.start.toISOString(),
-        shiftEnd: detected.end.toISOString(),
-        checkInActual: actual.toISOString(),
-        checkInCalc: calcStart.toISOString()
-      };
-
-      saveCurrentToLocal(state.user.id, state.current);
-      render();
-    }
-
-    async function handleCheckOut() {
-      if (!state.user) {
-        alert('Előbb jelentkezz be.');
-        return;
-      }
-      if (!state.current) return;
-
-      const actualOut = new Date();
-      const completed = {
-        ...state.current,
-        checkOutActual: actualOut.toISOString()
-      };
-
-      const { error } = await supabase
-        .from('work_logs')
-        .insert({
-          user_id: state.user.id,
-          shift_type: completed.shiftType,
-          shift_label: completed.shiftLabel,
-          shift_start: completed.shiftStart,
-          shift_end: completed.shiftEnd,
-          check_in_actual: completed.checkInActual,
-          check_in_calc: completed.checkInCalc,
-          check_out_actual: completed.checkOutActual
-        });
-
-      if (error) {
-        alert('Mentési hiba: ' + error.message);
-        return;
-      }
-
-      clearCurrentFromLocal(state.user.id);
-      state.current = null;
-      await loadLogsFromSupabase();
-      render();
-    }
-
-    async function clearAllLogs() {
-      if (!state.user) {
-        alert('Előbb jelentkezz be.');
-        return;
-      }
-
-      if (!confirm('Biztosan törlöd a saját teljes naplódat?')) return;
-
-      const { error } = await supabase
-        .from('work_logs')
-        .delete()
-        .eq('user_id', state.user.id);
-
-      if (error) {
-        alert('Törlési hiba: ' + error.message);
-        return;
-      }
-
-      clearCurrentFromLocal(state.user.id);
-      state.current = null;
-      state.history = [];
-      render();
-    }
-
-    function renderActive() {
-      if (!state.user) {
-        els.activeBox.innerHTML = `<div class="empty" style="margin-top:14px;">Jelentkezz be, és utána tudsz be / ki csekkolni.</div>`;
-        return;
-      }
-
-      if (!state.current) {
-        els.activeBox.innerHTML = `<div class="empty" style="margin-top:14px;">Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.</div>`;
-        return;
-      }
-
-      const current = state.current;
-      const calc = calculateSession({ ...current, checkOutActual: new Date().toISOString() });
-
-      els.activeBox.innerHTML = `
-        <div class="active">
-          <div><span class="badge">Aktív műszak</span> <strong>${current.shiftLabel}</strong></div>
-          <div class="kv">
-            <div><span class="k">Tényleges be csekkolás</span><strong>${formatDateTime(new Date(current.checkInActual))}</strong></div>
-            <div><span class="k">Elszámolt be csekkolás</span><strong>${formatDateTime(new Date(current.checkInCalc))}</strong></div>
-            <div><span class="k">Műszak kezdete</span><strong>${formatDateTime(new Date(current.shiftStart))}</strong></div>
-            <div><span class="k">Műszak vége</span><strong>${formatDateTime(new Date(current.shiftEnd))}</strong></div>
-          </div>
-          <div class="stats">
-            <div class="stat"><div class="l">Nyers alapidő</div><div class="v">${fmtDuration(calc.rawBaseMinutes)}</div></div>
-            <div class="stat"><div class="l">Kajaszünet levonás</div><div class="v">${fmtDuration(calc.breakDeduction)}</div></div>
-            <div class="stat"><div class="l">Fizetett alapidő</div><div class="v">${fmtDuration(calc.paidBaseMinutes)}</div></div>
-            <div class="stat"><div class="l">50% túlóra</div><div class="v">${fmtDuration(calc.overtime50)}</div></div>
-            <div class="stat"><div class="l">100% túlóra</div><div class="v">${fmtDuration(calc.overtime100)}</div></div>
-            <div class="stat"><div class="l">50% túlóra bér</div><div class="v">${formatEuro(calc.overtimePay50)}</div></div>
-            <div class="stat"><div class="l">100% túlóra bér</div><div class="v">${formatEuro(calc.overtimePay100)}</div></div>
-            <div class="stat"><div class="l">Túlóra bér összesen</div><div class="v">${formatEuro(calc.overtimePayTotal)}</div></div>
-          </div>
-        </div>`;
-    }
-
-    function renderSummary() {
-      const totals = state.history.reduce((acc, item) => {
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ current, history }));
+  }, [current, history]);
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const suggestedShift = useMemo(() => nearestShiftForCheckIn(now), [now]);
+
+  const handleCheckIn = () => {
+    if (current) return;
+
+    const actual = new Date();
+    const detected = nearestShiftForCheckIn(actual);
+    const calcStart = getRoundedCheckIn(actual, detected.start);
+
+    setCurrent({
+      id: crypto.randomUUID(),
+      shiftType: detected.shift,
+      shiftLabel: detected.label,
+      shiftStart: detected.start.toISOString(),
+      shiftEnd: detected.end.toISOString(),
+      checkInActual: actual.toISOString(),
+      checkInCalc: calcStart.toISOString(),
+    });
+  };
+
+  const handleCheckOut = () => {
+    if (!current) return;
+    const actualOut = new Date();
+    const completed = {
+      ...current,
+      checkOutActual: actualOut.toISOString(),
+    };
+    setHistory((prev) => [completed, ...prev]);
+    setCurrent(null);
+  };
+
+  const clearHistory = () => {
+    setHistory([]);
+  };
+
+  const currentCalc = current ? calculateSession(current) : null;
+
+  const totals = useMemo(() => {
+    return history.reduce(
+      (acc, item) => {
         const calc = calculateSession(item);
         acc.rawBase += calc.rawBaseMinutes;
         acc.breakDeduction += calc.breakDeduction;
@@ -917,123 +347,272 @@
         acc.otPayTotal += calc.overtimePayTotal;
         acc.paid += calc.paidEquivalentMinutes;
         return acc;
-      }, {
-        rawBase:0, breakDeduction:0, paidBase:0, ot:0, ot50:0, ot100:0, otPay50:0, otPay100:0, otPayTotal:0, paid:0
-      });
+      },
+      { rawBase: 0, breakDeduction: 0, paidBase: 0, ot: 0, ot50: 0, ot100: 0, otPay50: 0, otPay100: 0, otPayTotal: 0, paid: 0 }
+    );
+  }, [history]);
 
-      els.sumRaw.textContent = fmtDuration(totals.rawBase);
-      els.sumBreak.textContent = fmtDuration(totals.breakDeduction);
-      els.sumPaidBase.textContent = fmtDuration(totals.paidBase);
-      els.sumOt.textContent = fmtDuration(totals.ot);
-      els.sumOt50.textContent = fmtDuration(totals.ot50);
-      els.sumOt100.textContent = fmtDuration(totals.ot100);
-      els.sumPaidEquivalent.textContent = `${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó`;
-      els.sumOt50Pay.textContent = formatEuro(totals.otPay50);
-      els.sumOt100Pay.textContent = formatEuro(totals.otPay100);
-      els.sumOtTotalPay.textContent = formatEuro(totals.otPayTotal);
-      els.sumGrossPlusOt.textContent = formatEuro(FIXED_MONTHLY_GROSS + totals.otPayTotal);
-    }
+  const dayRows = useMemo(() => aggregateRows(history, "day"), [history]);
+  const weekRows = useMemo(() => aggregateRows(history, "week"), [history]);
+  const monthRows = useMemo(() => aggregateRows(history, "month"), [history]);
 
-    function buildTable(rows, firstCol, isMonthView) {
-      if (!state.user) return '<div class="empty">Jelentkezz be az adatok megtekintéséhez.</div>';
-      if (!rows.length) return '<div class="empty">Még nincs adat.</div>';
+  return (
+    <div className="min-h-screen bg-slate-50 p-3 sm:p-4 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Munkaidő naplózó</h1>
+            <p className="text-sm text-slate-600 sm:text-base">Mobilbarát, 2 gombos műszaknaplózás automatikus kerekítéssel, kajaszünet levonással és táblázatos összesítéssel.</p>
+          </div>
+          <Card className="w-full rounded-2xl shadow-sm lg:w-auto">
+            <CardContent className="flex items-center gap-3 p-4">
+              <Clock className="h-5 w-5" />
+              <div>
+                <div className="text-sm text-slate-500">Aktuális idő</div>
+                <div className="text-lg font-semibold sm:text-xl">{formatDateTime(now)}</div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-      return `
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>${firstCol}</th>
-                <th>Műszakok</th>
-                <th>Nyers alapidő</th>
-                <th>Levonás</th>
-                <th>Fizetett alapidő</th>
-                <th>50%</th>
-                <th>100%</th>
-                <th>Kifizetett idő</th>
-                <th>50% túlóra bér</th>
-                <th>100% túlóra bér</th>
-                <th>Túlóra bér</th>
-                ${isMonthView ? '<th>Fix havi bér</th><th>Bruttó + túlóra</th>' : ''}
-              </tr>
-            </thead>
-            <tbody>
-              ${rows.map(row => `
-                <tr>
-                  <td>${row.key}</td>
-                  <td>${row.sessions}</td>
-                  <td>${fmtDuration(row.rawBase)}</td>
-                  <td>${fmtDuration(row.breakDeduction)}</td>
-                  <td>${fmtDuration(row.paidBase)}</td>
-                  <td>${fmtDuration(row.overtime50)}</td>
-                  <td>${fmtDuration(row.overtime100)}</td>
-                  <td>${fmtDuration(Math.round(row.paidEquivalent))} / ${toDecimalHours(Math.round(row.paidEquivalent))} ó</td>
-                  <td>${formatEuro(row.overtimePay50)}</td>
-                  <td>${formatEuro(row.overtimePay100)}</td>
-                  <td>${formatEuro(row.overtimePayTotal)}</td>
-                  ${isMonthView ? `<td>${formatEuro(FIXED_MONTHLY_GROSS)}</td><td>${formatEuro(FIXED_MONTHLY_GROSS + row.overtimePayTotal)}</td>` : ''}
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>`;
-    }
+        <div className="grid gap-6 xl:grid-cols-3">
+          <Card className="rounded-2xl shadow-sm xl:col-span-2">
+            <CardHeader>
+              <CardTitle>Be / Ki csekkolás</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Button onClick={handleCheckIn} disabled={!!current} className="h-16 rounded-2xl text-base font-semibold sm:text-lg">
+                  <LogIn className="mr-2 h-5 w-5" />
+                  Be csekkolás
+                </Button>
+                <Button onClick={handleCheckOut} disabled={!current} variant="secondary" className="h-16 rounded-2xl text-base font-semibold sm:text-lg">
+                  <LogOut className="mr-2 h-5 w-5" />
+                  Ki csekkolás
+                </Button>
+              </div>
 
-    function renderTables() {
-      els.dayTable.innerHTML = buildTable(aggregateRows(state.history, 'day'), 'Nap', false);
-      els.weekTable.innerHTML = buildTable(aggregateRows(state.history, 'week'), 'Hét', false);
-      els.monthTable.innerHTML = buildTable(aggregateRows(state.history, 'month'), 'Hónap', true);
-    }
+              <div className="rounded-2xl border bg-slate-50 p-4">
+                <div className="mb-2 text-sm text-slate-500">Most felismerhető műszak</div>
+                <div className="flex items-center gap-2 text-lg font-semibold">
+                  {shiftIcon(suggestedShift.shift)}
+                  {suggestedShift.label}
+                </div>
+                <div className="mt-2 text-sm text-slate-600">
+                  Műszak: {formatDateTime(suggestedShift.start)} – {formatDateTime(suggestedShift.end)}
+                </div>
+              </div>
 
-    function renderLog() {
-      if (!state.user) {
-        els.logList.innerHTML = '<div class="empty">Jelentkezz be a saját naplód megtekintéséhez.</div>';
-        return;
-      }
+              {current ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Badge className="rounded-xl">Aktív műszak</Badge>
+                    <span className="font-semibold">{current.shiftLabel}</span>
+                  </div>
+                  <div className="grid gap-2 text-sm md:grid-cols-2">
+                    <div>Tényleges be csekkolás: <strong>{formatDateTime(new Date(current.checkInActual))}</strong></div>
+                    <div>Elszámolt be csekkolás: <strong>{formatDateTime(new Date(current.checkInCalc))}</strong></div>
+                    <div>Műszak kezdete: <strong>{formatDateTime(new Date(current.shiftStart))}</strong></div>
+                    <div>Műszak vége: <strong>{formatDateTime(new Date(current.shiftEnd))}</strong></div>
+                  </div>
+                  <Separator className="my-4" />
+                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+                    <Stat label="Nyers alapidő" value={fmtDuration(currentCalc?.rawBaseMinutes || 0)} />
+                    <Stat label="Kajaszünet levonás" value={fmtDuration(currentCalc?.breakDeduction || 0)} />
+                    <Stat label="Fizetett alapidő" value={fmtDuration(currentCalc?.paidBaseMinutes || 0)} />
+                    <Stat label="50% túlóra" value={fmtDuration(currentCalc?.overtime50 || 0)} />
+                    <Stat label="100% túlóra" value={fmtDuration(currentCalc?.overtime100 || 0)} />
+                    <Stat label="50% túlóra bér" value={formatEuro(currentCalc?.overtimePay50 || 0)} />
+                    <Stat label="100% túlóra bér" value={formatEuro(currentCalc?.overtimePay100 || 0)} />
+                  </div>
+                  <div className="mt-3 rounded-2xl border bg-white p-4 text-sm text-slate-700">
+                    Túlóra bér összesen: <strong>{formatEuro(currentCalc?.overtimePayTotal || 0)}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed p-4 text-sm text-slate-600">
+                  Nincs aktív műszak. Nyomd meg a <strong>Be csekkolás</strong> gombot.
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-      if (!state.history.length) {
-        els.logList.innerHTML = '<div class="empty">Még nincs mentett műszak.</div>';
-        return;
-      }
+          <Card className="rounded-2xl shadow-sm">
+            <CardHeader>
+              <CardTitle>Szabályok</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm text-slate-700">
+              <div>• Műszakok: 05:45–13:45, 13:45–21:45, 21:45–05:45.</div>
+              <div>• Ha legfeljebb 3 perccel korábban vagy később csekkolsz be, 45-től számol.</div>
+              <div>• 3 perc után a be csekkolást 15 perces blokkokra felfelé kerekíti.</div>
+              <div>• Példák: 05:43 → 05:45, 05:47 → 06:00, 13:46 → 14:00, 21:56 → 22:00.</div>
+              <div>• Minden ledolgozott napból automatikusan levon 18 perc kajaszünetet.</div>
+              <div>• Ha 05:45–13:45 műszakot dolgozol le, nem 8:00, hanem 7:42 fizetett alapidő lesz.</div>
+              <div>• Délelőttös műszak után a túlóra 50%.</div>
+              <div>• Délutános és éjszakás műszak után a túlóra 100%.</div>
+              <div>• 100%-os túlóra órabér: 42.31 € / óra.</div>
+              <div>• 50%-os túlóránál +10.58 € pótlék jön rá óránként.</div>
+              <div>• A túlóra a műszak vége után indul.</div>
+              <div>• A túlóra 15 percenként, lefelé kerekítve számolódik.</div>
+              <div>• Minden műszaknál látszik a tényleges be csekkolás, az elszámolt be csekkolás és a tényleges ki csekkolás is.</div>
+            </CardContent>
+          </Card>
+        </div>
 
-      els.logList.innerHTML = state.history.map(item => {
-        const calc = calculateSession(item);
-        return `
-          <div class="log-item">
-            <div style="margin-bottom:10px;">
-              <span class="badge">${item.shiftLabel}</span>
-              <span class="muted">${formatDateTime(new Date(item.shiftStart))} – ${formatDateTime(new Date(item.shiftEnd))}</span>
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Teljes összesítés</CardTitle>
+            <Button variant="outline" size="sm" onClick={clearHistory} className="rounded-xl w-full sm:w-auto">
+              <Trash2 className="mr-2 h-4 w-4" />
+              Napló törlése
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <Stat label="50% túlóra bér" value={formatEuro(totals.otPay50)} />
+              <Stat label="100% túlóra bér" value={formatEuro(totals.otPay100)} />
+              <Stat label="Túlóra bér összesen" value={formatEuro(totals.otPayTotal)} />
+              <Stat label="Fix havi bruttó" value={formatEuro(3533)} />
+              <Stat label="Becsült bruttó + túlóra" value={formatEuro(3533 + totals.otPayTotal)} />
             </div>
-            <div class="table-wrap">
-              <table style="min-width:700px;">
-                <tbody>
-                  <tr><th>Tényleges be csekkolás</th><td>${formatDateTime(new Date(item.checkInActual))}</td></tr>
-                  <tr><th>Elszámolt be csekkolás</th><td>${formatDateTime(new Date(item.checkInCalc))}</td></tr>
-                  <tr><th>Tényleges ki csekkolás</th><td>${formatDateTime(new Date(item.checkOutActual))}</td></tr>
-                  <tr><th>Nyers alapidő</th><td>${fmtDuration(calc.rawBaseMinutes)}</td></tr>
-                  <tr><th>Kajaszünet levonás</th><td>${fmtDuration(calc.breakDeduction)}</td></tr>
-                  <tr><th>Fizetett alapidő</th><td>${fmtDuration(calc.paidBaseMinutes)}</td></tr>
-                  <tr><th>50% túlóra</th><td>${fmtDuration(calc.overtime50)}</td></tr>
-                  <tr><th>100% túlóra</th><td>${fmtDuration(calc.overtime100)}</td></tr>
-                  <tr><th>50% túlóra bér</th><td>${formatEuro(calc.overtimePay50)}</td></tr>
-                  <tr><th>100% túlóra bér</th><td>${formatEuro(calc.overtimePay100)}</td></tr>
-                  <tr><th>Túlóra bér összesen</th><td>${formatEuro(calc.overtimePayTotal)}</td></tr>
-                  <tr><th>Kifizetett idő</th><td>${fmtDuration(Math.round(calc.paidEquivalentMinutes))} / ${toDecimalHours(Math.round(calc.paidEquivalentMinutes))} ó</td></tr>
-                </tbody>
-              </table>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+              <Stat label="Nyers alapidő" value={fmtDuration(totals.rawBase)} />
+              <Stat label="Kajaszünet levonás" value={fmtDuration(totals.breakDeduction)} />
+              <Stat label="Fizetett alapidő" value={fmtDuration(totals.paidBase)} />
+              <Stat label="Túlóra összesen" value={fmtDuration(totals.ot)} />
+              <Stat label="50% túlóra" value={fmtDuration(totals.ot50)} />
+              <Stat label="100% túlóra" value={fmtDuration(totals.ot100)} />
+              <Stat label="Kifizetett idő" value={`${fmtDuration(Math.round(totals.paid))} / ${toDecimalHours(Math.round(totals.paid))} ó`} />
             </div>
-          </div>`;
-      }).join('');
-    }
+          </CardContent>
+        </Card>
 
-    function render() {
-      updateLiveClock();
-      updateDetectedShift();
-      renderActive();
-      renderSummary();
-      renderTables();
-      renderLog();
-    }
-  </script>
-</body>
-</html>
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />Napi összesítés</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TableSummary rows={dayRows} firstCol="Nap" />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />Heti összesítés</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TableSummary rows={weekRows} firstCol="Hét" />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5" />Havi összesítés</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TableSummary rows={monthRows} firstCol="Hónap" />
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Table2 className="h-5 w-5" />Részletes napló</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {history.length === 0 ? (
+              <div className="text-sm text-slate-500">Még nincs mentett műszak.</div>
+            ) : (
+              history.map((item) => {
+                const calc = calculateSession(item);
+                return (
+                  <div key={item.id} className="rounded-2xl border p-4 overflow-x-auto">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary" className="rounded-xl">{item.shiftLabel}</Badge>
+                      <span className="text-sm text-slate-500">{formatDateTime(new Date(item.shiftStart))} – {formatDateTime(new Date(item.shiftEnd))}</span>
+                    </div>
+                    <table className="min-w-full text-sm">
+                      <tbody>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Tényleges be csekkolás</td><td className="py-2">{formatDateTime(new Date(item.checkInActual))}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Elszámolt be csekkolás</td><td className="py-2">{formatDateTime(new Date(item.checkInCalc))}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Tényleges ki csekkolás</td><td className="py-2">{formatDateTime(new Date(item.checkOutActual))}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Nyers alapidő</td><td className="py-2">{fmtDuration(calc.rawBaseMinutes)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Kajaszünet levonás</td><td className="py-2">{fmtDuration(calc.breakDeduction)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Fizetett alapidő</td><td className="py-2">{fmtDuration(calc.paidBaseMinutes)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">50% túlóra</td><td className="py-2">{fmtDuration(calc.overtime50)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">100% túlóra</td><td className="py-2">{fmtDuration(calc.overtime100)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">50% túlóra bér</td><td className="py-2">{formatEuro(calc.overtimePay50)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">100% túlóra bér</td><td className="py-2">{formatEuro(calc.overtimePay100)}</td></tr>
+                        <tr className="border-b"><td className="py-2 pr-4 font-medium">Túlóra bér összesen</td><td className="py-2">{formatEuro(calc.overtimePayTotal)}</td></tr>
+                        <tr><td className="py-2 pr-4 font-medium">Kifizetett idő</td><td className="py-2">{fmtDuration(Math.round(calc.paidEquivalentMinutes))} / {toDecimalHours(Math.round(calc.paidEquivalentMinutes))} ó</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }) {
+  return (
+    <div className="rounded-2xl border bg-white p-4 shadow-sm">
+      <div className="text-sm text-slate-500">{label}</div>
+      <div className="mt-1 text-lg font-semibold sm:text-xl">{value}</div>
+    </div>
+  );
+}
+
+function TableSummary({ rows, firstCol }) {
+  if (rows.length === 0) {
+    return <div className="text-sm text-slate-500">Még nincs adat.</div>;
+  }
+
+  const isMonthView = firstCol === "Hónap";
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border">
+      <table className="min-w-full text-sm">
+        <thead className="bg-slate-100 text-slate-700">
+          <tr>
+            <th className="px-3 py-3 text-left font-semibold">{firstCol}</th>
+            <th className="px-3 py-3 text-left font-semibold">Műszakok</th>
+            <th className="px-3 py-3 text-left font-semibold">Nyers alapidő</th>
+            <th className="px-3 py-3 text-left font-semibold">Levonás</th>
+            <th className="px-3 py-3 text-left font-semibold">Fizetett alapidő</th>
+            <th className="px-3 py-3 text-left font-semibold">50%</th>
+            <th className="px-3 py-3 text-left font-semibold">100%</th>
+            <th className="px-3 py-3 text-left font-semibold">Kifizetett idő</th>
+            <th className="px-3 py-3 text-left font-semibold">50% túlóra bér</th>
+            <th className="px-3 py-3 text-left font-semibold">100% túlóra bér</th>
+            <th className="px-3 py-3 text-left font-semibold">Túlóra bér</th>
+            {isMonthView && <th className="px-3 py-3 text-left font-semibold">Fix havi bér</th>}
+            {isMonthView && <th className="px-3 py-3 text-left font-semibold">Bruttó + túlóra</th>}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key} className="border-t">
+              <td className="px-3 py-3">{row.key}</td>
+              <td className="px-3 py-3">{row.sessions}</td>
+              <td className="px-3 py-3">{fmtDuration(row.rawBase)}</td>
+              <td className="px-3 py-3">{fmtDuration(row.breakDeduction)}</td>
+              <td className="px-3 py-3">{fmtDuration(row.paidBase)}</td>
+              <td className="px-3 py-3">{fmtDuration(row.overtime50)}</td>
+              <td className="px-3 py-3">{fmtDuration(row.overtime100)}</td>
+              <td className="px-3 py-3">{fmtDuration(Math.round(row.paidEquivalent))} / {toDecimalHours(Math.round(row.paidEquivalent))} ó</td>
+              <td className="px-3 py-3">{formatEuro(row.overtimePay50)}</td>
+              <td className="px-3 py-3">{formatEuro(row.overtimePay100)}</td>
+              <td className="px-3 py-3">{formatEuro(row.overtimePayTotal)}</td>
+              {isMonthView && <td className="px-3 py-3">{formatEuro(3533)}</td>}
+              {isMonthView && <td className="px-3 py-3">{formatEuro(3533 + row.overtimePayTotal)}</td>}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
